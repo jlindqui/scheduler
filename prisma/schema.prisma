@@ -96,10 +96,12 @@ model Organization {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  members             OrganizationMember[]
-  currentForUsers     User[]               @relation("UserCurrentOrganization")
-  employeeProfiles    EmployeeProfile[]
-  schedules           Schedule[]
+  members                    OrganizationMember[]
+  currentForUsers            User[]               @relation("UserCurrentOrganization")
+  employeeProfiles           EmployeeProfile[]
+  schedules                  Schedule[]
+  managerGeneralPreferences  ManagerGeneralPreference[]
+  managerSchedulePreferences ManagerSchedulePreference[]
 
   @@map("Organization")
 }
@@ -170,6 +172,7 @@ model Schedule {
 
   organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   preferences         SchedulePreference[]
+  managerPreferences  ManagerSchedulePreference[]
   shifts              Shift[]
   optimizationDrafts  OptimizationDraft[]
 
@@ -301,4 +304,44 @@ model SchedulePreference {
   @@index([employeeProfileId])
   @@index([scheduleId])
   @@map("SchedulePreference")
+}
+
+// ============================================================================
+// MANAGER PREFERENCES
+// ============================================================================
+
+model ManagerGeneralPreference {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  constraintType ConstraintType @map("constraint_type")
+  description    String   // Human-readable description
+  parameters     Json     // Structured constraint data
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("ManagerGeneralPreference")
+}
+
+model ManagerSchedulePreference {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  scheduleId     String   @map("schedule_id")
+  constraintType ConstraintType @map("constraint_type")
+  description    String   // Human-readable description
+  parameters     Json     // Structured constraint data
+  priority       Int      @default(5) // 1-10, higher = more important
+  notes          String?  // Additional context
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  schedule     Schedule     @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([scheduleId])
+  @@map("ManagerSchedulePreference")
 }

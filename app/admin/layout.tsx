@@ -18,11 +18,7 @@ export default function AdminLayout({
   const pathname = usePathname();
 
   const navItems = [
-    { href: '/admin', label: 'Dashboard', icon: '📊' },
     { href: '/admin/master-schedule', label: 'Master Schedule', icon: '📅' },
-    { href: '/admin/requests', label: 'Staff Requests', icon: '📋' },
-    { href: '/admin/team', label: 'Team Overview', icon: '👥' },
-    { href: '/admin/reports', label: 'Reports', icon: '📈' },
   ];
 
   return (
