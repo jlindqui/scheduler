@@ -1,0 +1,304 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// AUTHENTICATION & USERS
+// ============================================================================
+
+model User {
+  id                    String   @id @default(cuid())
+  name                  String?
+  email                 String   @unique
+  phone                 String?
+  employeeNumber        String?  @unique @map("employee_number")
+  timezone              String?  @default("America/New_York")
+  emailVerified         Boolean  @default(false) @map("email_verified")
+  image                 String?
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  currentOrganizationId String?  @map("current_organization_id")
+  isSuperAdmin          Boolean  @default(false) @map("is_super_admin")
+
+  currentOrganization Organization? @relation("UserCurrentOrganization", fields: [currentOrganizationId], references: [id])
+
+  // Better-auth relations
+  accounts Account[]
+  sessions Session[]
+
+  // Organization relations
+  organizations OrganizationMember[]
+
+  // Employee profile
+  employeeProfile EmployeeProfile?
+
+  @@map("User")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id")
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@map("Account")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime @map("expires_at")
+  token     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  userId    String   @map("user_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("Session")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([identifier, value])
+  @@map("Verification")
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  members             OrganizationMember[]
+  currentForUsers     User[]               @relation("UserCurrentOrganization")
+  employeeProfiles    EmployeeProfile[]
+  schedules           Schedule[]
+
+  @@map("Organization")
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  userId         String       @map("user_id")
+  organizationId String       @map("organization_id")
+  role           MemberRole   @default(EMPLOYEE)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@map("OrganizationMember")
+}
+
+enum MemberRole {
+  ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+// ============================================================================
+// EMPLOYEE MANAGEMENT
+// ============================================================================
+
+model EmployeeProfile {
+  id                     String    @id @default(cuid())
+  userId                 String    @unique @map("user_id")
+  organizationId         String    @map("organization_id")
+  hireDate               DateTime  @map("hire_date")
+  jobTitle               String?   @map("job_title")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Relations
+  generalPreferences  GeneralPreference[]
+  schedulePreferences SchedulePreference[]
+  shiftAssignments    ShiftAssignment[]
+
+  @@index([organizationId])
+  @@map("EmployeeProfile")
+}
+
+// ============================================================================
+// SCHEDULING
+// ============================================================================
+
+model Schedule {
+  id                String         @id @default(cuid())
+  name              String
+  organizationId    String         @map("organization_id")
+  startDate         DateTime       @map("start_date")
+  endDate           DateTime       @map("end_date")
+  status            ScheduleStatus @default(PREFERENCE_COLLECTION)
+  preferencesDueDate DateTime?     @map("preferences_due_date")
+  publishedAt       DateTime?      @map("published_at")
+  createdBy         String         @map("created_by")
+  notes             String?
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  preferences         SchedulePreference[]
+  shifts              Shift[]
+  optimizationDrafts  OptimizationDraft[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("Schedule")
+}
+
+enum ScheduleStatus {
+  PREFERENCE_COLLECTION  // Employees submitting preferences
+  OPTIMIZATION          // AI generating schedule options
+  MANAGER_REVIEW        // Manager reviewing drafts
+  PUBLISHED             // Final schedule published
+  COMPLETED             // Schedule period has passed
+}
+
+model OptimizationDraft {
+  id          String   @id @default(cuid())
+  scheduleId  String   @map("schedule_id")
+  draftNumber Int      @map("draft_number")
+  name        String?
+  summary     Json     // Stats: staffing levels, costs, preference satisfaction
+  assignments Json     // Draft shift assignments
+  score       Decimal? @db.Decimal(10, 2) // Optimization score
+  riskAnalysis Json?   @map("risk_analysis") // AI-provided risks/warnings
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, draftNumber])
+  @@index([scheduleId])
+  @@map("OptimizationDraft")
+}
+
+model Shift {
+  id                String    @id @default(cuid())
+  scheduleId        String    @map("schedule_id")
+  shiftDate         DateTime  @map("shift_date")
+  startTime         String    @map("start_time") // HH:MM format
+  endTime           String    @map("end_time")   // HH:MM format
+  shiftType         String?   @map("shift_type") // Day, Evening, Night, etc.
+  location          String?
+  minStaffing       Int       @default(1) @map("min_staffing")
+  targetStaffing    Int       @default(1) @map("target_staffing")
+  notes             String?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  schedule         Schedule          @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  assignments      ShiftAssignment[]
+
+  @@index([scheduleId])
+  @@index([shiftDate])
+  @@map("Shift")
+}
+
+model ShiftAssignment {
+  id                String            @id @default(cuid())
+  shiftId           String            @map("shift_id")
+  employeeProfileId String            @map("employee_profile_id")
+  status            AssignmentStatus  @default(SCHEDULED)
+  assignedAt        DateTime          @default(now()) @map("assigned_at")
+  confirmedAt       DateTime?         @map("confirmed_at")
+  notes             String?
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  shift           Shift           @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  employeeProfile EmployeeProfile @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([shiftId, employeeProfileId])
+  @@index([employeeProfileId])
+  @@map("ShiftAssignment")
+}
+
+enum AssignmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CANCELLED
+}
+
+// ============================================================================
+// PREFERENCES
+// ============================================================================
+
+model GeneralPreference {
+  id                String   @id @default(cuid())
+  employeeProfileId String   @map("employee_profile_id")
+  constraintType    ConstraintType @map("constraint_type")
+  description       String   // Human-readable description
+  parameters        Json     // Structured constraint data
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  employeeProfile EmployeeProfile @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
+
+  @@index([employeeProfileId])
+  @@map("GeneralPreference")
+}
+
+enum ConstraintType {
+  DAY_RESTRICTION        // e.g., "Can only work 1 of Tuesday or Wednesday"
+  CONSECUTIVE_DAYS       // e.g., "Cannot work more than 3 days in a row"
+  WEEKEND_PATTERN        // e.g., "Cannot work back-to-back weekends"
+  DAY_PAIRING            // e.g., "If working Monday, cannot work Friday"
+  MAX_SHIFTS_PER_WEEK    // e.g., "Maximum 4 shifts per week"
+  PREFERRED_DAYS_OFF     // e.g., "Prefer Tuesdays off"
+  TIME_OF_DAY            // e.g., "Only available mornings"
+  MINIMUM_DAYS_BETWEEN   // e.g., "At least 2 days between shifts"
+}
+
+model SchedulePreference {
+  id                String   @id @default(cuid())
+  employeeProfileId String   @map("employee_profile_id")
+  scheduleId        String   @map("schedule_id")
+  constraintType    ConstraintType @map("constraint_type")
+  description       String   // Human-readable description
+  parameters        Json     // Structured constraint data
+  priority          Int      @default(5) // 1-10, higher = more important
+  notes             String?  // Additional context
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  employeeProfile EmployeeProfile @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
+  schedule        Schedule        @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@index([employeeProfileId])
+  @@index([scheduleId])
+  @@map("SchedulePreference")
+}

@@ -1,0 +1,28 @@
+User-agent: *
+Allow: /
+
+# Disallow private product pages
+Disallow: /product/
+Disallow: /password-reset
+Disallow: /invitation/
+Disallow: /no-organization
+
+# Allow SEO-friendly public pages
+Allow: /grievance-tracking
+Allow: /complaint-management
+Allow: /grievance-management
+Allow: /agreement-navigator
+Allow: /complaints-incidents
+Allow: /ai-drafts
+Allow: /competitors
+Allow: /faq
+Allow: /about
+Allow: /contact
+Allow: /demo
+Allow: /enterprise
+Allow: /employer_union
+Allow: /waitlist
+Allow: /privacy
+
+# Sitemap location
+Sitemap: https://brownandbeatty.ai/sitemap.xml
