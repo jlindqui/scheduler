@@ -3,7 +3,7 @@ import { BetterAuthPlugin } from "better-auth";
 import { customSession } from "better-auth/plugins";
 import { prisma } from "../../app/lib/db";
 import { getOrganizationsForEmail } from "@/app/lib/auth-db-actions";
-import { Organization } from "@/app/lib/definitions";
+import { Organization, MemberRole } from "@/app/lib/definitions";
 
 export const organizationSessionPlugin = customSession(
   async ({ user, session }) => {
@@ -30,7 +30,7 @@ export const organizationSessionPlugin = customSession(
               ...user,
               organization: organization as Organization & {
                 members: Array<{
-                  role: "Admin" | "Member";
+                  role: MemberRole;
                   userId: string;
                 }>;
               },

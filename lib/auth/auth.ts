@@ -14,7 +14,7 @@ import {
   acceptUserInvitationPrisma, 
   hasPendingInvitationPrisma 
 } from "@/app/actions/prisma/user-management-actions";
-import { OrganizationType } from "@prisma/client";
+// import { OrganizationType } from "@prisma/client"; // Removed - not in schema
 import {
   sendNewUserEmailAlert,
   sendResetPasswordEmail,
@@ -44,7 +44,7 @@ export const auth = betterAuth({
   }),
 
   // Explicit base URL for Better Auth
-  baseURL: process.env.NEXTAUTH_URL,
+  baseURL: process.env.NEXTAUTH_URL || 'http://localhost:3000',
 
   // Add trusted origins
   trustedOrigins: [
@@ -54,10 +54,14 @@ export const auth = betterAuth({
     process.env.BETTER_AUTH_URL,
   ].filter(Boolean) as string[],
 
+  // Add secret to avoid warnings during build
+  secret: process.env.BETTER_AUTH_SECRET || 'temp-secret-for-build',
+
   socialProviders: {
     google: {
-      clientId: process.env.AUTH_GOOGLE_ID!,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+      clientId: process.env.AUTH_GOOGLE_ID || 'placeholder',
+      clientSecret: process.env.AUTH_GOOGLE_SECRET || 'placeholder',
+      enabled: !!(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET),
     },
   },
 
@@ -121,7 +125,6 @@ export const auth = betterAuth({
               );
               await createOrganizationPrisma(
                 "Super Admin Org",
-                OrganizationType.HR,
                 user.id
               );
 
@@ -218,7 +221,6 @@ export const auth = betterAuth({
               where: { email: user.email },
               select: {
                 isSuperAdmin: true,
-                title: true,
                 phone: true,
                 timezone: true,
               },
@@ -230,7 +232,6 @@ export const auth = betterAuth({
                 ...user,
                 organization,
                 isSuperAdmin,
-                title: userData?.title || undefined,
                 phone: userData?.phone || undefined,
                 timezone: userData?.timezone || undefined,
               },

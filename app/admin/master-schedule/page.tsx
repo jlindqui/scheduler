@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { ConstraintType } from '@/app/lib/definitions';
 import { parseScheduleCSV, ScheduleData, ScheduleRow } from '@/app/lib/schedule-parser';
 import { getAllGeneralPreferences, getAllSchedulePreferences } from '@/app/actions/preferences';
 import {
@@ -61,6 +62,9 @@ export default function MasterSchedulePage() {
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [hoveredIssueDays, setHoveredIssueDays] = useState<number[]>([]);
+  const [selectedIssues, setSelectedIssues] = useState<Set<number>>(new Set());
+  const [generatingSchedule, setGeneratingSchedule] = useState(false);
+  const [suggestedSchedule, setSuggestedSchedule] = useState<{ schedule: ScheduleData; explanation: string } | null>(null);
 
   useEffect(() => {
     loadData();
@@ -137,7 +141,7 @@ export default function MasterSchedulePage() {
         } else {
           const created = await createManagerGeneralPreference({
             organizationId: MOCK_ORGANIZATION_ID,
-            constraintType: 'DAY_RESTRICTION',
+            constraintType: ConstraintType.DAY_RESTRICTION,
             description: managerGeneralPreference,
             parameters: {},
           });
@@ -159,7 +163,7 @@ export default function MasterSchedulePage() {
             const created = await createManagerSchedulePreference({
               organizationId: MOCK_ORGANIZATION_ID,
               scheduleId: selectedSchedule.id,
-              constraintType: 'DAY_RESTRICTION',
+              constraintType: ConstraintType.DAY_RESTRICTION,
               description: managerSchedulePreference,
               parameters: {},
             });
@@ -207,12 +211,93 @@ export default function MasterSchedulePage() {
 
       const result = await response.json();
       setValidationResult(result);
+      // Default all issues to checked
+      setSelectedIssues(new Set(result.issues.map((_: any, idx: number) => idx)));
+      setSuggestedSchedule(null); // Clear suggested schedule
     } catch (error) {
       console.error('Failed to validate schedule:', error);
       alert('Failed to validate schedule');
     } finally {
       setValidating(false);
     }
+  }
+
+  function toggleIssueSelection(index: number) {
+    setSelectedIssues(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
+  }
+
+  async function suggestNewSchedule() {
+    if (!scheduleData || !validationResult || selectedIssues.size === 0) return;
+
+    setGeneratingSchedule(true);
+    try {
+      const selectedIssuesList = Array.from(selectedIssues).map(idx => validationResult.issues[idx]);
+
+      const response = await fetch('/api/generate-schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentSchedule: scheduleData,
+          issuesToFix: selectedIssuesList,
+          generalPreferences,
+          schedulePreferences,
+          managerGeneralPreference: managerGeneralPreference || undefined,
+          managerSchedulePreference: managerSchedulePreference || undefined,
+        }),
+      });
+
+      const result = await response.json();
+      setSuggestedSchedule(result);
+    } catch (error) {
+      console.error('Failed to generate schedule:', error);
+      alert('Failed to generate new schedule');
+    } finally {
+      setGeneratingSchedule(false);
+    }
+  }
+
+  function acceptNewSchedule() {
+    if (!suggestedSchedule) return;
+    setScheduleData(suggestedSchedule.schedule);
+    setSuggestedSchedule(null);
+    setValidationResult(null);
+    setSelectedIssues(new Set());
+    toast({
+      title: "Success",
+      description: "New schedule accepted! You can now validate it again.",
+    });
+  }
+
+  function calculateChangedCells(currentSchedule: ScheduleData, newSchedule: ScheduleData): Set<string> {
+    const changedCells = new Set<string>();
+
+    for (const newEmp of newSchedule.employees) {
+      const currentEmp = currentSchedule.employees.find(e => e.id === newEmp.id);
+      if (!currentEmp) continue;
+
+      for (let dayIdx = 0; dayIdx < newEmp.shifts.length; dayIdx++) {
+        const currentShift = currentEmp.shifts[dayIdx] || null;
+        const newShift = newEmp.shifts[dayIdx] || null;
+
+        // Normalize empty strings to null for comparison
+        const normalizedCurrent = currentShift === '' ? null : currentShift;
+        const normalizedNew = newShift === '' ? null : newShift;
+
+        if (normalizedCurrent !== normalizedNew) {
+          changedCells.add(`${newEmp.id}-${dayIdx}`);
+        }
+      }
+    }
+
+    return changedCells;
   }
 
   if (loading) {
@@ -409,11 +494,20 @@ export default function MasterSchedulePage() {
                 {validationResult.issues.map((issue, idx) => (
                   <div
                     key={idx}
-                    className="p-6 hover:bg-gray-50 cursor-pointer transition-colors"
+                    className="p-6 hover:bg-gray-50 transition-colors"
                     onMouseEnter={() => setHoveredIssueDays(issue.affectedDayNumbers)}
                     onMouseLeave={() => setHoveredIssueDays([])}
                   >
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="flex items-center pt-1">
+                        <input
+                          type="checkbox"
+                          checked={selectedIssues.has(idx)}
+                          onChange={() => toggleIssueSelection(idx)}
+                          className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -463,6 +557,60 @@ export default function MasterSchedulePage() {
               </div>
             </div>
           )}
+
+          {/* Suggest New Schedule Button */}
+          {validationResult && validationResult.issues.length > 0 && (
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={suggestNewSchedule}
+                disabled={selectedIssues.size === 0 || generatingSchedule}
+                className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold text-lg shadow-lg"
+              >
+                {generatingSchedule ? 'Generating New Schedule...' : `Suggest New Schedule (${selectedIssues.size} issue${selectedIssues.size !== 1 ? 's' : ''} selected)`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Suggested Schedule Comparison */}
+      {suggestedSchedule && (
+        <div className="mb-6">
+          <div className="bg-white border border-green-200 rounded-lg shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Suggested Schedule</h2>
+              <button
+                onClick={acceptNewSchedule}
+                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-semibold shadow"
+              >
+                Accept New Schedule
+              </button>
+            </div>
+
+            {/* Explanation */}
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">What Changed</h3>
+              <div className="text-sm text-gray-700 whitespace-pre-wrap">{suggestedSchedule.explanation}</div>
+            </div>
+
+            {/* Suggested Schedule */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Suggested Schedule</h3>
+              <div className="border border-green-300 rounded-lg overflow-hidden">
+                <div className="overflow-x-scroll overflow-y-auto max-h-[600px]">
+                  <ScheduleGrid
+                    data={suggestedSchedule.schedule}
+                    highlightDays={[]}
+                    changedCells={calculateChangedCells(scheduleData!, suggestedSchedule.schedule)}
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-gray-600 mt-3 italic">
+                <span className="inline-block w-4 h-4 bg-green-200 border border-gray-300 mr-1"></span>
+                Green cells indicate changes from the current schedule
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -484,7 +632,11 @@ export default function MasterSchedulePage() {
   );
 }
 
-function ScheduleGrid({ data, highlightDays }: { data: ScheduleData; highlightDays: number[] }) {
+function ScheduleGrid({ data, highlightDays, changedCells }: {
+  data: ScheduleData;
+  highlightDays: number[];
+  changedCells?: Set<string>; // Set of "employeeId-dayIndex" strings
+}) {
   // Calculate dates starting from Dec 1, 2025
   const startDate = new Date('2025-12-01');
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -535,19 +687,24 @@ function ScheduleGrid({ data, highlightDays }: { data: ScheduleData; highlightDa
               </td>
               <td className="border border-gray-300 px-2 py-1">{emp.status}</td>
               <td className="border border-gray-300 px-2 py-1">{emp.fte}</td>
-              {emp.shifts.map((shift, idx) => (
-                <td
-                  key={idx}
-                  className={`border border-gray-300 px-2 py-1 text-center whitespace-nowrap ${
-                    highlightDays.includes(idx + 1) ? 'bg-yellow-100' :
-                    shift === '0700-1900' ? 'bg-blue-50' :
-                    shift === '1900-0700' ? 'bg-purple-50' :
-                    'bg-white'
-                  }`}
+              {emp.shifts.map((shift, idx) => {
+                const cellKey = `${emp.id}-${idx}`;
+                const isChanged = changedCells?.has(cellKey);
+                return (
+                  <td
+                    key={idx}
+                    className={`border border-gray-300 px-2 py-1 text-center whitespace-nowrap ${
+                      isChanged ? 'bg-green-200 font-bold' :
+                      highlightDays.includes(idx + 1) ? 'bg-yellow-100' :
+                      shift === '0700-1900' ? 'bg-blue-50' :
+                      shift === '1900-0700' ? 'bg-purple-50' :
+                      'bg-white'
+                    }`}
                 >
                   {shift || '-'}
                 </td>
-              ))}
+              );
+              })}
             </tr>
           ))}
         </tbody>

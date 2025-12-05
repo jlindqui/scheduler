@@ -7,7 +7,7 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { getEvidencePrisma } from "@/app/actions/prisma/evidence-actions";
+// import { getEvidencePrisma } from "@/app/actions/prisma/evidence-actions"; // Removed - not needed for scheduling
 import { getOrganizationId } from "@/app/actions/organization";
 import { STORAGE_BUCKETS, StorageEntityType } from "./storage-config";
 
@@ -125,17 +125,19 @@ export class StorageService {
 
   /**
    * Get evidence file for processing (with evidence ID lookup)
+   * NOTE: This method is from the old grievance system and is not used in scheduling
    */
   async getEvidenceFileForProcessing(evidenceId: string): Promise<Buffer> {
-    const organizationId = await getOrganizationId();
-    const evidence = await getEvidencePrisma(evidenceId, organizationId);
+    // const organizationId = await getOrganizationId();
+    // const evidence = await getEvidencePrisma(evidenceId, organizationId);
 
-    if (!evidence || !evidence.source) {
-      throw new Error("Evidence file not found");
-    }
+    // if (!evidence || !evidence.source) {
+    //   throw new Error("Evidence file not found");
+    // }
 
-    // The evidence.source field contains the complete filename with ID prefix
-    return await this.getFileForProcessing("evidence", evidence.source);
+    // // The evidence.source field contains the complete filename with ID prefix
+    // return await this.getFileForProcessing("evidence", evidence.source);
+    throw new Error("This method is not implemented for the scheduling system");
   }
 
   /**

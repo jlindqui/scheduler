@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Schedule } from '@/app/lib/definitions';
+import { Schedule, ConstraintType } from '@/app/lib/definitions';
 import { getUpcomingSchedules } from '@/app/actions/schedules';
 import {
   getGeneralPreferences,
@@ -105,7 +105,7 @@ export default function StaffPage() {
         } else {
           const created = await createGeneralPreference({
             employeeProfileId: employeeId,
-            constraintType: 'DAY_RESTRICTION',
+            constraintType: ConstraintType.DAY_RESTRICTION,
             description: generalPreference,
             parameters: {},
           });
@@ -124,7 +124,7 @@ export default function StaffPage() {
             const created = await createSchedulePreference({
               employeeProfileId: employeeId,
               scheduleId: schedule.id,
-              constraintType: 'DAY_RESTRICTION',
+              constraintType: ConstraintType.DAY_RESTRICTION,
               description: pref.text,
               parameters: {},
             });

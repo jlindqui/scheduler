@@ -130,8 +130,6 @@ export async function getOrganizationsForEmail(email: string) {
         select: {
           id: true,
           name: true,
-          organizationType: true,
-          logoFilename: true,
           members: {
             select: {
               role: true,
@@ -160,8 +158,6 @@ export async function getOrganizationsForEmail(email: string) {
       select: {
         id: true,
         name: true,
-        organizationType: true,
-        logoFilename: true,
         members: {
           where: {
             userId: user.id,

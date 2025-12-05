@@ -1,7 +1,7 @@
 "use client";
 
 import { redirect } from "next/navigation";
-import { Button } from "@/app/ui/product/button";
+import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import {
   signInSocial,

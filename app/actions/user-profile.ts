@@ -52,7 +52,6 @@ export async function updateUserProfile(formData: FormData) {
       where: { id: session.user.id },
       data: {
         name: fullName,
-        title: validated.title || null,
         phone: validated.phone || null,
         timezone: validated.timezone || null,
       },
@@ -161,7 +160,6 @@ export async function updateOrganization(formData: FormData) {
       where: { id: organizationId },
       data: {
         name: validated.organizationName,
-        organizationType: validated.organizationType as any,
       },
     });
 
@@ -198,12 +196,13 @@ export async function updateOrganizationLogo(logoFilename: string) {
       return { success: false, error: "No organization found" };
     }
 
-    await prisma.organization.update({
-      where: { id: organizationId },
-      data: {
-        logoFilename: logoFilename,
-      },
-    });
+    // Logo upload not implemented in scheduling system
+    // await prisma.organization.update({
+    //   where: { id: organizationId },
+    //   data: {
+    //     logoFilename: logoFilename,
+    //   },
+    // });
 
     revalidatePath("/product/settings/profile");
     return { success: true };

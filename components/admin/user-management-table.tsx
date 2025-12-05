@@ -33,8 +33,8 @@ import {
   updateUserOrganizationRole,
   removeUserFromOrganization,
 } from '@/app/actions/prisma/user-management-actions';
-import { getOrganizationTypeDisplay } from '@/app/lib/definitions';
 import { useToast } from '@/hooks/use-toast';
+import { MemberRole } from '@/app/lib/definitions';
 
 type User = {
   id: string;
@@ -45,11 +45,10 @@ type User = {
   currentOrganizationId: string | null;
   organizations: {
     id: string;
-    role: 'Admin' | 'Member';
+    role: MemberRole;
     organization: {
       id: string;
       name: string;
-      organizationType: 'HR' | 'Union' | 'Local' | 'LAW_FIRM';
     };
   }[];
 };
@@ -57,7 +56,6 @@ type User = {
 type Organization = {
   id: string;
   name: string;
-  organizationType: 'HR' | 'Union' | 'Local' | 'LAW_FIRM';
 };
 
 interface UserManagementTableProps {
@@ -70,7 +68,7 @@ export function UserManagementTable({ users, organizations }: UserManagementTabl
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isAddingToOrg, setIsAddingToOrg] = useState(false);
   const [selectedOrganization, setSelectedOrganization] = useState<string>('');
-  const [selectedRole, setSelectedRole] = useState<'Admin' | 'Member'>('Member');
+  const [selectedRole, setSelectedRole] = useState<MemberRole>(MemberRole.EMPLOYEE);
   const [isLoading, setIsLoading] = useState<string | null>(null);
 
   const handleToggleSuperAdmin = async (userId: string, currentStatus: boolean) => {
@@ -110,7 +108,7 @@ export function UserManagementTable({ users, organizations }: UserManagementTabl
       });
       setIsAddingToOrg(false);
       setSelectedOrganization('');
-      setSelectedRole('Member');
+      setSelectedRole(MemberRole.EMPLOYEE);
     } catch (error) {
       console.error('Failed to add user to organization:', error);
       toast({
@@ -123,7 +121,7 @@ export function UserManagementTable({ users, organizations }: UserManagementTabl
     }
   };
 
-  const handleUpdateRole = async (userId: string, organizationId: string, newRole: 'Admin' | 'Member') => {
+  const handleUpdateRole = async (userId: string, organizationId: string, newRole: MemberRole) => {
     const loadingKey = `update-role-${userId}-${organizationId}`;
     setIsLoading(loadingKey);
 
@@ -219,17 +217,18 @@ export function UserManagementTable({ users, organizations }: UserManagementTabl
                       </Badge>
                       <Select
                         value={membership.role}
-                        onValueChange={(value: 'Admin' | 'Member') =>
+                        onValueChange={(value: MemberRole) =>
                           handleUpdateRole(user.id, membership.organization.id, value)
                         }
                         disabled={isLoading === `update-role-${user.id}-${membership.organization.id}`}
                       >
-                        <SelectTrigger className="w-20 h-6 text-xs">
+                        <SelectTrigger className="w-28 h-6 text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Member">User</SelectItem>
-                          <SelectItem value="Admin">Admin</SelectItem>
+                          <SelectItem value={MemberRole.EMPLOYEE}>Employee</SelectItem>
+                          <SelectItem value={MemberRole.MANAGER}>Manager</SelectItem>
+                          <SelectItem value={MemberRole.ADMIN}>Admin</SelectItem>
                         </SelectContent>
                       </Select>
                       <Button
@@ -280,7 +279,7 @@ export function UserManagementTable({ users, organizations }: UserManagementTabl
                           <SelectContent>
                             {getAvailableOrganizations(selectedUser).map((org) => (
                               <SelectItem key={org.id} value={org.id}>
-                                {org.name} ({getOrganizationTypeDisplay(org.organizationType)})
+                                {org.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -288,13 +287,14 @@ export function UserManagementTable({ users, organizations }: UserManagementTabl
                       </div>
                       <div>
                         <label className="text-sm font-medium">Role</label>
-                        <Select value={selectedRole} onValueChange={(value: 'Admin' | 'Member') => setSelectedRole(value)}>
+                        <Select value={selectedRole} onValueChange={(value: MemberRole) => setSelectedRole(value)}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Member">User</SelectItem>
-                            <SelectItem value="Admin">Admin</SelectItem>
+                            <SelectItem value={MemberRole.EMPLOYEE}>Employee</SelectItem>
+                            <SelectItem value={MemberRole.MANAGER}>Manager</SelectItem>
+                            <SelectItem value={MemberRole.ADMIN}>Admin</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

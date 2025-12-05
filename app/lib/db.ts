@@ -33,5 +33,4 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Export types for use in other files
-export type { Prisma } from '@prisma/client'
-export type { AgreementStepTemplate } from '@prisma/client' 
+export type { Prisma } from '@prisma/client' 

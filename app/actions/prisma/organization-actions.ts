@@ -1,6 +1,6 @@
 'use server';
 import { prisma } from '@/app/lib/db';
-import { OrganizationType } from '@prisma/client';
+// import { OrganizationType } from '@prisma/client'; // Removed - not in schema
 
 export async function fetchOrganizationUsersPrisma(organizationId: string) {
   const members = await prisma.organizationMember.findMany({
@@ -49,7 +49,7 @@ export async function findOrganizationMemberPrisma(organizationId: string, userI
   return existingMember;
 }
 
-export async function createOrganizationMemberPrisma(organizationId: string, userId: string, role: 'Admin' | 'Member' = 'Member') {
+export async function createOrganizationMemberPrisma(organizationId: string, userId: string, role: 'ADMIN' | 'MANAGER' | 'EMPLOYEE' = 'EMPLOYEE') {
   await prisma.organizationMember.create({
     data: {
       organizationId,
@@ -95,12 +95,15 @@ export async function fetchUsersNotInAnyOrganizationPrisma() {
   return users;
 }
 
-export async function createOrganizationPrisma(name: string, organizationType: OrganizationType, userId: string) {
+export async function createOrganizationPrisma(name: string, userId: string) {
   // Create the organization
+  // Generate a slug from the name
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
   const organization = await prisma.organization.create({
     data: {
       name,
-      organizationType,
+      slug,
     },
   });
 
@@ -109,7 +112,7 @@ export async function createOrganizationPrisma(name: string, organizationType: O
     data: {
       userId,
       organizationId: organization.id,
-      role: 'Admin',
+      role: 'ADMIN',
     },
   });
 
@@ -140,7 +143,6 @@ export async function fetchUserOrganizationsPrisma(userId: string, currentOrgId?
   return memberships.map(membership => ({
     id: membership.organization.id,
     name: membership.organization.name,
-    type: membership.organization.organizationType,
     role: membership.role,
     isCurrent: membership.organization.id === currentOrgId,
   }));
